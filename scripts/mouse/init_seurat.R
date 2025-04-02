@@ -46,6 +46,7 @@ sample_obj = TSSEnrichment(object = sample_obj, verbose = T, fast = T)
 # compute gene activity using Signac
 gene.activities <- GeneActivity(atac, features = rownames(rna_counts))
 sample_obj[["ACTIVITY"]] <- gene.activities
+
 # filter by QC metrics
 
 DefaultAssay(sample_obj) <- "RNA"
