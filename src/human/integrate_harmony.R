@@ -6,18 +6,20 @@ library(patchwork)
 library(ggplot2)
 library(stringr)
 options(future.globals.maxSize = 1e9)
+library(tidyverse)
+library(stringr)
 
 # we integrate samples originating from the same tissue using harmony
 
 
 # obtain samples and corresponding tissues
-all_samples_tissue_df = read.csv("metadata/ENCODE_metadata_mouse.csv")
+all_samples_tissue_df = read.csv("metadata/ENCODE_metadata_human.csv")
 
-pdf("plots/mouse_harmonyIntegrated.pdf", width = 14, height = 6)
+pdf("plots/human_harmonyIntegrated.pdf", width = 14, height = 6)
 
 # get list of tissues
 tissue_list = unique(all_samples_tissue_df$tissue_source)
-
+cluster_num <- list()
 # iterate through tissues
 for (tissue in tissue_list) {
 
@@ -25,7 +27,7 @@ for (tissue in tissue_list) {
 	samples_per_tissue_list = all_samples_tissue_df$multiomics_series[all_samples_tissue_df$tissue_source == tissue]
 	
 	# obtain samples
-	samples_per_tissue_filepaths = lapply(samples_per_tissue_list, function(x) glue("output/init_obj/mouse/{x}.rds"))
+	samples_per_tissue_filepaths = lapply(samples_per_tissue_list, function(x) glue("output/init_obj/human/{x}.rds"))
 
 	tissue_multiomics_obj_list = lapply(samples_per_tissue_filepaths, readRDS)
 
@@ -37,9 +39,9 @@ for (tissue in tissue_list) {
 	tissue_merged_obj <- ScaleData(object = tissue_merged_obj)
 	tissue_merged_obj <- RunPCA(tissue_merged_obj)
 
-	# clustering on unintegrated samples
-	tissue_merged_obj <- FindNeighbors(tissue_merged_obj, reduction = "pca", dims = 1:30)
-	tissue_merged_obj <- FindClusters(tissue_merged_obj, resolution = 2, cluster.name = glue("Unintegrated_clusters"))
+	# # clustering on unintegrated samples
+	# tissue_merged_obj <- FindNeighbors(tissue_merged_obj, reduction = "pca", dims = 1:30)
+	# tissue_merged_obj <- FindClusters(tissue_merged_obj, resolution = 0.5, cluster.name = glue("Unintegrated_clusters"))
 
 	# unintegrated umap
 	tissue_merged_obj <- RunUMAP(tissue_merged_obj, reduction = "pca", dims = 1:30, reduction.name = 'umap.unintegrated')
@@ -54,6 +56,11 @@ for (tissue in tissue_list) {
 	# clustering on harmony integrated samples
 	tissue_merged_obj <- FindNeighbors(tissue_merged_obj, reduction = "harmony", dims = 1:30)
 	tissue_merged_obj <- FindClusters(tissue_merged_obj, resolution = 0.5, cluster.name = "Harmony_clusters")
+
+	# save info about number of cells in each cluster
+	clusters_list <- tissue_merged_obj$meta.data$Harmony_clusters
+	clusters_counts <- table(clusters_list)
+	cluster_num[[tissue]] <- clusters_counts
 
 	# harmony integrated umap
 	tissue_merged_obj <- RunUMAP(tissue_merged_obj, reduction = "harmony", dims = 1:30, reduction.name = "umap.harmony")
@@ -79,8 +86,10 @@ for (tissue in tissue_list) {
 
 	# save merged integrated tissue sample
 	tissue_underscore = str_replace_all(tissue, " ", "_")
-	saveRDS(tissue_merged_obj,glue("output/tissue_harmonized/mouse/{tissue_underscore}.rds"))
+	saveRDS(tissue_merged_obj,glue("output/tissue_harmonized/human/{tissue_underscore}.rds"))
 }	
+
+saveRDS(cluster_num, glue("output/tissue_harmonized/cluster_info_human.rds"))
 
 dev.off()
 

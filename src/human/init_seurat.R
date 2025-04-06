@@ -2,9 +2,10 @@ library(Signac)
 library(Seurat)
 library(GenomicRanges)
 library(glue)
-library(EnsDb.Mmusculus.v79)
-library(BSgenome.Mmusculus.UCSC.mm10)
+library(EnsDb.Hsapiens.v86)
 library(rtracklayer)
+
+### HUMAN
 
 # we generate seurat objects for each multiomics sample, filtering cells according to their qc metric
 
@@ -13,20 +14,20 @@ args = commandArgs(trailingOnly = TRUE)
 sample_multiome_acc = args[1]
 
 # annotations UCSC style
-annotations = GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
+annotations = GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
 seqlevelsStyle(annotations) <- "UCSC"
-genome(annotations) <- "mm10"
+genome(annotations) <- "hg38"
 
 # create Seurat Object and filter based on qc metrics
 
-inputdata.10x = Read10X_h5(glue('data/mouse/{sample_multiome_acc}/outs/filtered_feature_bc_matrix.h5'))
+inputdata.10x = Read10X_h5(glue('data/human/{sample_multiome_acc}/filtered_feature_bc_matrix.h5'))
 rna_counts <- inputdata.10x$`Gene Expression`
 atac_counts <- inputdata.10x$Peaks
 
 # RNA assay
 
 sample_obj = CreateSeuratObject(counts = rna_counts, assay = "RNA", project = sample_multiome_acc)
-sample_obj[["percent.mt"]] <- PercentageFeatureSet(sample_obj, pattern = "^mt-")
+sample_obj[["percent.mt"]] <- PercentageFeatureSet(sample_obj, pattern = "^MT-")
 
 # ATAC assay
 
@@ -35,7 +36,7 @@ grange.use <- seqnames(grange.counts) %in% standardChromosomes(grange.counts)
 atac_counts <- atac_counts[as.vector(grange.use), ]
 
 sample_obj[["ATAC"]] = CreateChromatinAssay(counts = atac_counts,
-                                            fragments = glue('data/mouse/{sample_multiome_acc}/outs/atac_fragments.tsv.gz'),
+                                            fragments = glue('data/human/{sample_multiome_acc}/atac_fragments.tsv.gz'),
                                             sep = c(":", "-"),
                                             annotation = annotations)
 DefaultAssay(sample_obj) = "ATAC"
@@ -44,8 +45,8 @@ sample_obj = NucleosomeSignal(object = sample_obj, verbose = F)
 sample_obj = TSSEnrichment(object = sample_obj, verbose = T, fast = T)  
 
 # compute gene activity using Signac
-gene.activities <- GeneActivity(atac, features = rownames(rna_counts))
-sample_obj[["ACTIVITY"]] <- gene.activities
+gene.activities <- GeneActivity(sample_obj, features = rownames(rna_counts))
+sample_obj[["ACTIVITY"]] <- CreateAssayObject(counts = gene.activities)
 
 # filter by QC metrics
 
@@ -62,6 +63,6 @@ sample_obj = subset(
 )
 
 # save remapped Seurat Object
-saveRDS(sample_obj, glue("output/init_obj/mouse/{sample_multiome_acc}.rds"))
+saveRDS(sample_obj, glue("output/init_obj/human/{sample_multiome_acc}.rds"))
 
 
