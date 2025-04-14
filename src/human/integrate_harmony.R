@@ -8,7 +8,7 @@ library(stringr)
 options(future.globals.maxSize = 1e9)
 library(tidyverse)
 library(stringr)
-
+library(harmony)
 # we integrate samples originating from the same tissue using harmony
 
 
@@ -31,7 +31,7 @@ for (tissue in tissue_list) {
 
 	tissue_multiomics_obj_list = lapply(samples_per_tissue_filepaths, readRDS)
 
-	tissue_merged_obj = merge(x = tissue_multiomics_obj_list[[1]], y = tissue_multiomics_obj_list[-1])
+	tissue_merged_obj = merge(x = tissue_multiomics_obj_list[[1]], y = tissue_multiomics_obj_list[-1], add.cell.ids = samples_per_tissue_list)
 
 	# normalization
 	tissue_merged_obj <- NormalizeData(object = tissue_merged_obj)
@@ -47,23 +47,34 @@ for (tissue in tissue_list) {
 	tissue_merged_obj <- RunUMAP(tissue_merged_obj, reduction = "pca", dims = 1:30, reduction.name = 'umap.unintegrated')
 
 	# harmony integration
-	tissue_merged_obj = IntegrateLayers(
-        object = tissue_merged_obj, method = HarmonyIntegration,
-        orig.reduction = "pca", new.reduction = "harmony",
-        verbose = FALSE
-	)
+	
+	# if tissue only contains one sample, no need to integrate by harmony
+	if (length(samples_per_tissue_list)==1){
+		tissue_merged_obj <- FindNeighbors(tissue_merged_obj, reduction = "pca", dims = 1:30)
+	} else {
+		# tissue_merged_obj = IntegrateLayers(
+		# 	object = tissue_merged_obj, method = HarmonyIntegration,
+		# 	orig.reduction = "pca", new.reduction = "harmony",
+		# 	verbose = FALSE
+		# )
+		tissue_merged_obj <- RunHarmony(tissue_merged_obj, group.by.vars='orig.ident')
+		tissue_merged_obj <- FindNeighbors(tissue_merged_obj, reduction = "harmony", dims = 1:30)
+	}
 	
 	# clustering on harmony integrated samples
-	tissue_merged_obj <- FindNeighbors(tissue_merged_obj, reduction = "harmony", dims = 1:30)
 	tissue_merged_obj <- FindClusters(tissue_merged_obj, resolution = 0.5, cluster.name = "Harmony_clusters")
 
 	# save info about number of cells in each cluster
-	clusters_list <- tissue_merged_obj$meta.data$Harmony_clusters
+	clusters_list <- tissue_merged_obj[["Harmony_clusters"]]
 	clusters_counts <- table(clusters_list)
 	cluster_num[[tissue]] <- clusters_counts
 
 	# harmony integrated umap
-	tissue_merged_obj <- RunUMAP(tissue_merged_obj, reduction = "harmony", dims = 1:30, reduction.name = "umap.harmony")
+	if (length(samples_per_tissue_list)==1){
+		tissue_merged_obj <- RunUMAP(tissue_merged_obj, reduction = "pca", dims = 1:30, reduction.name = "umap.harmony")
+	} else {
+		tissue_merged_obj <- RunUMAP(tissue_merged_obj, reduction = "harmony", dims = 1:30, reduction.name = "umap.harmony")
+	}
 	
 	# plot original unintegrated umap by sample
 	

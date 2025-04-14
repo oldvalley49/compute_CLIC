@@ -8,6 +8,7 @@ library(stringr)
 options(future.globals.maxSize = 1e9)
 library(tidyverse)
 library(stringr)
+library(harmony)
 # we integrate samples originating from the same tissue using harmony
 
 
@@ -46,11 +47,7 @@ for (tissue in tissue_list) {
 	tissue_merged_obj <- RunUMAP(tissue_merged_obj, reduction = "pca", dims = 1:30, reduction.name = 'umap.unintegrated')
 
 	# harmony integration
-	tissue_merged_obj = IntegrateLayers(
-        object = tissue_merged_obj, method = HarmonyIntegration,
-        orig.reduction = "pca", new.reduction = "harmony",
-        verbose = FALSE
-	)
+	tissue_merged_obj <- RunHarmony(tissue_merged_obj, group.by.vars='orig.ident')
 	
 	# clustering on harmony integrated samples
 	tissue_merged_obj <- FindNeighbors(tissue_merged_obj, reduction = "harmony", dims = 1:30)
