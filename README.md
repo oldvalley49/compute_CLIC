@@ -1,4 +1,4 @@
-# CLIC_score
+# Computing CLIC scores for scRNA-seq and scATAC-seq integration
 Computing correlation score for scRNA-seq scATAC-seq integration using ENCODE data
 
 
